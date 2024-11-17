@@ -27,7 +27,7 @@ namespace BezierSurfaceVisualizer.Bezier
                 for (int j = 0; j <= m; j++)
                 {
                     float bernsteinV = Bernstein(m, j, v);
-                    point += controlPoints[i, j] * bernsteinU * bernsteinV;
+                    point += controlPoints[i, j] * bernsteinU * bernsteinV; // Prosze zmienić Path w pliku Utils/FileHelper.cs jeżeli tu wyskoczył błąd.
                 }
             }
 

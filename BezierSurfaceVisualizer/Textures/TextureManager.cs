@@ -18,7 +18,7 @@ namespace BezierSurfaceVisualizer.Textures
         public TextureManager()
         {
             // Domyślny kolor obiektu
-            ObjectColor = new Vector3(0.7f, 0.7f, 0.7f);
+            ObjectColor = new Vector3(30.7f, 0.7f, 0.7f);
         }
 
         // Metoda do wczytywania tekstury z pliku

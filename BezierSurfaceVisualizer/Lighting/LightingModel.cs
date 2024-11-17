@@ -28,6 +28,11 @@ namespace BezierSurfaceVisualizer.Lighting
             LightColor = new Vector3(1, 1, 1);
             LightPosition = new Vector3(0, 0, 100);
         }
+        public void SetLightPosition(Vector3 position)
+        {
+            LightPosition = position;
+        }
+
 
         // Metoda do obliczania koloru wypełnienia dla danego wierzchołka
         public Color CalculateColor(Vector3 normal, Vector3 objectColor)
