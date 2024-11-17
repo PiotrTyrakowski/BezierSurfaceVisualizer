@@ -7,8 +7,8 @@ namespace BezierSurfaceVisualizer.Transformations
     public class Transformer
     {
         // Kąty obrotu w stopniach
-        private float alpha; // obrót wokół osi Z
-        private float beta;  // obrót wokół osi X
+        private float alpha; // obrót wokół osi X
+        private float beta;  // obrót wokół osi Z
 
         // Konstruktor
         public Transformer(float alpha, float beta)
@@ -40,8 +40,10 @@ namespace BezierSurfaceVisualizer.Transformations
             float alphaRad = MathHelper.DegreesToRadians(alpha);
             float betaRad = MathHelper.DegreesToRadians(beta);
 
-            Matrix4x4 rotationZ = Matrix4x4.CreateRotationZ(alphaRad);
-            Matrix4x4 rotationX = Matrix4x4.CreateRotationX(betaRad);
+            // there is no mistake
+            Matrix4x4 rotationX = Matrix4x4.CreateRotationY(alphaRad);
+            Matrix4x4 rotationZ = Matrix4x4.CreateRotationZ(betaRad); 
+         
 
             return rotationX * rotationZ;
         }

@@ -83,10 +83,6 @@ namespace BezierSurfaceVisualizer.Rendering
             int minY = (int)Math.Min(intPoints[0].Y, Math.Min(intPoints[1].Y, intPoints[2].Y));
             int maxY = (int)Math.Max(intPoints[0].Y, Math.Max(intPoints[1].Y, intPoints[2].Y));
 
-            if (minY < 0 || maxY > graphics.VisibleClipBounds.Height)
-            {
-                Console.WriteLine("");
-            }
 
             // Pętla po liniach poziomych
             for (int y = minY; y <= maxY; y++)
@@ -102,65 +98,68 @@ namespace BezierSurfaceVisualizer.Rendering
                         intersections.Add((int)x);
                     }
                 }
+                if (intersections.Count < 2)
+                    continue; // No valid intersection for this scanline
 
                 intersections.Sort();
 
+
+                float xStart = intersections[0];
+                float xEnd = intersections[1];
+
+                // Clamp to canvas boundaries
+                xStart = Math.Max(xStart, 0);
+                xEnd = Math.Min(xEnd, graphics.VisibleClipBounds.Width - 1);
+
                 // Wypełnianie linii między parzystymi przecięciami
-                for (int i = 0; i < intersections.Count - 1; i += 2)
+               
+                for (int x = (int)Math.Ceiling(xStart); x <= (int)Math.Floor(xEnd); x++)
                 {
-                    for (int x = intersections[i]; x <= intersections[i + 1]; x++)
-                    {
-                        // Obliczanie współrzędnych barycentrycznych
-                        Vector3 barycentric = MathHelper.ComputeBarycentricCoordinates(new Point(x, y), intPoints[0], intPoints[1], intPoints[2]);
+                    // Obliczanie współrzędnych barycentrycznych
+                    Vector3 barycentric = MathHelper.ComputeBarycentricCoordinates(new Point(x, y), intPoints[0], intPoints[1], intPoints[2]);
 
-                        // Interpolacja wektora normalnego i współrzędnej z
-                        Vector3 interpolatedNormal = barycentric.X * vertices[0].NAfter + barycentric.Y * vertices[1].NAfter + barycentric.Z * vertices[2].NAfter;
+                    if (barycentric.X < 0 || barycentric.Y < 0 || barycentric.Z < 0)
+                        continue;
+
+                    // Interpolacja wektora normalnego i współrzędnej z
+                    Vector3 interpolatedNormal = barycentric.X * vertices[0].NAfter + barycentric.Y * vertices[1].NAfter + barycentric.Z * vertices[2].NAfter;
                        
+                    interpolatedNormal = Vector3.Normalize(interpolatedNormal);
+
+                    
+                    if (modifyNormal)
+                    {
+                        // Modyfikacja wektora normalnego na podstawie mapy normalnych
+                        Vector3 Ntexture = textureManager.GetNormalVector(
+                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
+                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
+
+                        Matrix3x3 M = new Matrix3x3(
+                            vertices[0].PuAfter, vertices[0].PvAfter, vertices[0].NAfter);
+
+                        interpolatedNormal = Matrix3x3.Transform(Ntexture, M);
                         interpolatedNormal = Vector3.Normalize(interpolatedNormal);
-
-                        if(float.IsNaN(interpolatedNormal.X))
-                        {
-                            Console.Write("");
-                        }
-
-                        if (modifyNormal)
-                        {
-                            // Modyfikacja wektora normalnego na podstawie mapy normalnych
-                            Vector3 Ntexture = textureManager.GetNormalVector(
-                                barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
-                                barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
-
-                            Matrix3x3 M = new Matrix3x3(
-                                vertices[0].PuAfter, vertices[0].PvAfter, vertices[0].NAfter);
-
-                            interpolatedNormal = Matrix3x3.Transform(Ntexture, M);
-                            interpolatedNormal = Vector3.Normalize(interpolatedNormal);
-                        }
-
-                        // Obliczanie koloru
-                        Vector3 objectColor;
-                        if (useTexture)
-                        {
-
-                            if(Math.Abs(1.05 - (barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V) ) < 0.1) 
-                            {
-                                Console.WriteLine("");
-                            }
-                            objectColor = textureManager.GetTextureColor(
-                                barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
-                                barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
-                        }
-                        else
-                        {
-                            objectColor = textureManager.ObjectColor;
-                        }
-
-                        Color color = lightingModel.CalculateColor(interpolatedNormal, objectColor);
-
-                        // Rysowanie piksela
-                        graphics.FillRectangle(new SolidBrush(color), x, y, 1, 1);
                     }
+
+                    // Obliczanie koloru
+                    Vector3 objectColor;
+                    if (useTexture)
+                    {          
+                        objectColor = textureManager.GetTextureColor(
+                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
+                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
+                    }
+                    else
+                    {
+                        objectColor = textureManager.ObjectColor;
+                    }
+
+                    Color color = lightingModel.CalculateColor(interpolatedNormal, objectColor);
+
+                    // Rysowanie piksela
+                    graphics.FillRectangle(new SolidBrush(color), x, y, 1, 1);
                 }
+                
             }
         }
     }
