@@ -79,15 +79,14 @@ namespace BezierSurfaceVisualizer.Rendering
                 intPoints[i] = Point.Round(points[i]);
             }
 
-            // Obliczanie minimalnego i maksymalnego Y
             int minY = (int)Math.Min(intPoints[0].Y, Math.Min(intPoints[1].Y, intPoints[2].Y));
             int maxY = (int)Math.Max(intPoints[0].Y, Math.Max(intPoints[1].Y, intPoints[2].Y));
 
-
-            // Pętla po liniach poziomych
+            
+            
             for (int y = minY; y <= maxY; y++)
             {
-                // Znajdź przecięcia z krawędziami
+              
                 List<int> intersections = new List<int>();
                 for (int i = 0; i < 3; i++)
                 {
@@ -99,7 +98,7 @@ namespace BezierSurfaceVisualizer.Rendering
                     }
                 }
                 if (intersections.Count < 2)
-                    continue; // No valid intersection for this scanline
+                    continue; 
 
                 intersections.Sort();
 
@@ -126,7 +125,30 @@ namespace BezierSurfaceVisualizer.Rendering
                        
                     interpolatedNormal = Vector3.Normalize(interpolatedNormal);
 
+                   
+                    Vector3 interpolatedPosition =
+                        barycentric.X * vertices[0].PAfter +
+                        barycentric.Y * vertices[1].PAfter +
+                        barycentric.Z * vertices[2].PAfter;
+
+                    //interpolatedPosition = Vector3.Normalize(interpolatedPosition);
+
+
+
                     
+
+                    Vector3 objectColor;
+                    if (useTexture)
+                    {          
+                        objectColor = textureManager.GetTextureColor(
+                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
+                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
+                    }
+                    else
+                    {
+                        objectColor = textureManager.ObjectColor;
+                    }
+
                     if (modifyNormal)
                     {
                         // Modyfikacja wektora normalnego na podstawie mapy normalnych
@@ -141,20 +163,7 @@ namespace BezierSurfaceVisualizer.Rendering
                         interpolatedNormal = Vector3.Normalize(interpolatedNormal);
                     }
 
-                    // Obliczanie koloru
-                    Vector3 objectColor;
-                    if (useTexture)
-                    {          
-                        objectColor = textureManager.GetTextureColor(
-                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
-                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
-                    }
-                    else
-                    {
-                        objectColor = textureManager.ObjectColor;
-                    }
-
-                    Color color = lightingModel.CalculateColor(interpolatedNormal, objectColor);
+                    Color color = lightingModel.CalculateColor(interpolatedNormal, objectColor, interpolatedPosition);
 
                     // Rysowanie piksela
                     graphics.FillRectangle(new SolidBrush(color), x, y, 1, 1);

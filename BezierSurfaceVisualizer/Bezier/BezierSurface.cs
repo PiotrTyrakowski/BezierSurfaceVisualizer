@@ -8,7 +8,6 @@ namespace BezierSurfaceVisualizer.Bezier
         // Macierz punktów kontrolnych (4x4)
         private Vector3[,] controlPoints = new Vector3[4, 4];
 
-        // Konstruktor
         public BezierSurface(Vector3[,] controlPoints)
         {
             this.controlPoints = controlPoints;
