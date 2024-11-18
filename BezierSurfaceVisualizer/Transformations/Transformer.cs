@@ -40,7 +40,7 @@ namespace BezierSurfaceVisualizer.Transformations
             float alphaRad = MathHelper.DegreesToRadians(alpha);
             float betaRad = MathHelper.DegreesToRadians(beta);
 
-            // there is no mistake
+            // nie ma bledu w macierzy obrotu
             Matrix4x4 rotationX = Matrix4x4.CreateRotationY(alphaRad);
             Matrix4x4 rotationZ = Matrix4x4.CreateRotationZ(betaRad); 
          

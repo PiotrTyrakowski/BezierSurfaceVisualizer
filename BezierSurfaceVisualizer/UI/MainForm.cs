@@ -11,6 +11,7 @@ using BezierSurfaceVisualizer.Utils;
 using System.Drawing;
 using System.Numerics;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace BezierSurfaceVisualizer.UI
 {
@@ -34,6 +35,10 @@ namespace BezierSurfaceVisualizer.UI
         private Button loadTextureButton;
         private Button loadNormalMapButton;
         private Timer animationTimer;
+        private CheckBox enableLightCheckBox;
+        private CheckBox enableSpotlightsCheckBox;
+        private NumericUpDown spotlightFocusNumericUpDown;
+
 
         // Inne pola
         private Mesh mesh;
@@ -53,19 +58,16 @@ namespace BezierSurfaceVisualizer.UI
         // Konstruktor
         public MainForm()
         {
-            // Inicjalizacja interfejsu użytkownika
             InitializeComponent();
             InitializeData();
         }
 
         private void InitializeComponent()
         {
-            // Ustawienia okna
             this.Text = "Bezier Surface Visualizer";
             this.Width = 1000;
             this.Height = 800;
 
-            // Inicjalizacja kontrolek
             canvas = new PictureBox
             {
                 Location = new Point(10, 10),
@@ -265,7 +267,6 @@ namespace BezierSurfaceVisualizer.UI
             this.Controls.Add(loadTextureButton);
             controlY += controlHeight;
 
-            // Przyciski zmiany koloru światła i wczytywania mapy normalnych
             changeLightColorButton = new Button
             {
                 Location = new Point(controlX, controlY),
@@ -294,7 +295,7 @@ namespace BezierSurfaceVisualizer.UI
                 Location = new Point(controlX, controlY + 20),
                 Minimum = -100,
                 Maximum = 100,
-                Value = 50,
+                Value = 20,
                 TickFrequency = 10,
                 Orientation = Orientation.Horizontal,
                 Width = controlWidth
@@ -321,25 +322,66 @@ namespace BezierSurfaceVisualizer.UI
             };
             stopAnimationButton.Click += OnStopAnimationClicked;
             this.Controls.Add(stopAnimationButton);
+
+            enableLightCheckBox = new CheckBox
+            {
+                Location = new Point(controlX-800, controlY),
+                Text = "Włącz światło",
+                Checked = true,
+                Width = controlWidth
+            };
+            enableLightCheckBox.CheckedChanged += OnEnableLightChanged;
+            this.Controls.Add(enableLightCheckBox);
+
+            enableSpotlightsCheckBox = new CheckBox
+            {
+                Location = new Point(controlX-600, controlY),
+                Text = "Włącz reflektory",
+                Checked = false,
+                Width = controlWidth
+            };
+            enableSpotlightsCheckBox.CheckedChanged += OnEnableSpotlightsChanged;
+            this.Controls.Add(enableSpotlightsCheckBox);
+            
+
+            Label spotlightFocusLabel = new Label
+            {
+                Location = new Point(controlX-400, controlY-30),
+                Text = "Skupienie reflektorów",
+                Width = controlWidth + controlWidth
+            };
+            this.Controls.Add(spotlightFocusLabel);
+
+            spotlightFocusNumericUpDown = new NumericUpDown
+            {
+                Location = new Point(controlX-400, controlY),
+                Minimum = 0,
+                Maximum = 3,
+                Value = 1,
+                DecimalPlaces = 1,
+                Increment = 0.1M,
+                Width = 100
+            };
+            spotlightFocusNumericUpDown.ValueChanged += OnSpotlightFocusChanged;
+            this.Controls.Add(spotlightFocusNumericUpDown);
+            //controlY += controlSpacing;
         }
+
+
 
 
         private void InitializeData()
         {
             
-            // Wczytanie punktów kontrolnych z pliku
             Vector3[,] controlPoints = FileHelper.LoadControlPoints("control_points.txt");
 
-            // Inicjalizacja powierzchni Beziera
             bezierSurface = new BezierSurface(controlPoints);
 
-            // Inicjalizacja triangulatora
             triangulator = new Triangulator(divisionTrackBar.Value);
 
-            // Inicjalizacja transformacji
             transformer = new Transformer(alphaTrackBar.Value, betaTrackBar.Value);
 
-            // Inicjalizacja modelu oświetlenia
+           
             lightingModel = new LightingModel
             {
                 Kd = kdTrackBar.Value / 100f,
@@ -347,20 +389,15 @@ namespace BezierSurfaceVisualizer.UI
                 M = mTrackBar.Value
             };
 
-            // Inicjalizacja managera tekstur
             textureManager = new TextureManager();
 
-            // Inicjalizacja renderera
             renderer = new Renderer(textureManager, lightingModel, textureRadioButton.Checked, modifyNormalCheckBox.Checked);
 
-            // Ustawienie opcji renderowania
-            renderer.RenderFilled = true;    // TODO
+            renderer.RenderFilled = true;    
             renderer.RenderWireframe = true;
 
-            // Generowanie siatki
             mesh = triangulator.GenerateMesh(bezierSurface);
 
-            // Transformacja wierzchołków
             foreach (var triangle in mesh.Triangles)
             {
                 transformer.RotateVertex(triangle.Vertex1);
@@ -373,16 +410,16 @@ namespace BezierSurfaceVisualizer.UI
         {
             renderer.RenderMesh(e.Graphics, mesh, canvas.Width, canvas.Height);
 
-            // Rysowanie pozycji światła
+        
             DrawLightSymbol(e.Graphics);
         }
 
         private void DrawLightSymbol(Graphics graphics)
         {
-            // Transformacja pozycji światła na pozycję na canvasie
+         
             PointF lightPosition = ProjectToCanvas(lightingModel.LightPosition, canvas.Width, canvas.Height);
 
-            // Rysowanie symbolu (np. małego kółka)
+       
             float size = 10;
             graphics.FillEllipse(Brushes.Yellow, lightPosition.X - size / 2, lightPosition.Y - size / 2, size, size);
         }
@@ -390,10 +427,30 @@ namespace BezierSurfaceVisualizer.UI
         private PointF ProjectToCanvas(Vector3 point, int canvasWidth, int canvasHeight)
         {
             float x = point.X + canvasWidth / 2;
-            float y = -point.Y + canvasHeight / 2; // Odwrócenie osi Y
+            float y = -point.Y + canvasHeight / 2; 
 
             return new PointF(x, y);
         }
+
+        // new events
+        private void OnEnableLightChanged(object sender, EventArgs e)
+        {
+            lightingModel.EnableLight = enableLightCheckBox.Checked;
+            canvas.Invalidate();
+        }
+
+        private void OnEnableSpotlightsChanged(object sender, EventArgs e)
+        {
+            lightingModel.EnableSpotlights = enableSpotlightsCheckBox.Checked;
+            canvas.Invalidate();
+        }
+
+        private void OnSpotlightFocusChanged(object sender, EventArgs e)
+        {
+            lightingModel.SpotlightFocus = (float)spotlightFocusNumericUpDown.Value;
+            canvas.Invalidate();
+        }
+
 
         private void OnDivisionChanged(object sender, EventArgs e)
         {
@@ -445,11 +502,17 @@ namespace BezierSurfaceVisualizer.UI
             canvas.Invalidate();
         }
 
-       
-
+        
         private void OnLoadTextureClicked(object sender, EventArgs e)
         {
-            OpenFileDialog openFileDialog = new OpenFileDialog();
+            string filePathPoints = Path.Combine(AppDomain.CurrentDomain.BaseDirectory);
+            string projectPath = Path.GetFullPath(Path.Combine(filePathPoints, @"..\.."));
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                InitialDirectory = projectPath,
+                Filter = "Image Files|*.bmp;*.jpg;*.jpeg;*.png;*.gif|All Files|*.*"
+            };
+            
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 textureManager.LoadObjectTexture(openFileDialog.FileName);
@@ -459,7 +522,13 @@ namespace BezierSurfaceVisualizer.UI
 
         private void OnLoadNormalMapClicked(object sender, EventArgs e)
         {
-            OpenFileDialog openFileDialog = new OpenFileDialog();
+            string filePathPoints = Path.Combine(AppDomain.CurrentDomain.BaseDirectory);
+            string projectPath = Path.GetFullPath(Path.Combine(filePathPoints, @"..\.."));
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                InitialDirectory = projectPath, 
+                Filter = "Image Files|*.bmp;*.jpg;*.jpeg;*.png;*.gif|All Files|*.*" 
+            };
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 textureManager.LoadNormalMap(openFileDialog.FileName);
@@ -469,7 +538,9 @@ namespace BezierSurfaceVisualizer.UI
 
         private void OnLightZChanged(object sender, EventArgs e)
         {
-            lightingModel.LightPosition = new Vector3(lightingModel.LightPosition.X, lightingModel.LightPosition.Y, lightZTrackBar.Value);
+           
+            lightingModel.SetLightPosition(new Vector3(lightingModel.LightPosition.X, lightingModel.LightPosition.Y, lightZTrackBar.Value));
+
             canvas.Invalidate();
         }
 
@@ -491,7 +562,6 @@ namespace BezierSurfaceVisualizer.UI
             }
         }
 
-        // Metoda obsługi zmiany koloru obiektu
         private void OnChangeObjectColorClicked(object sender, EventArgs e)
         {
             using (ColorDialog colorDialog = new ColorDialog())
@@ -507,7 +577,6 @@ namespace BezierSurfaceVisualizer.UI
             }
         }
 
-        // Metoda obsługi zmiany koloru światła
         private void OnChangeLightColorClicked(object sender, EventArgs e)
         {
             using (ColorDialog colorDialog = new ColorDialog())
@@ -523,19 +592,11 @@ namespace BezierSurfaceVisualizer.UI
             }
         }
 
-        // Metoda obsługi zmiany opcji rysowania krawędzi
         private void OnWireframeChanged(object sender, EventArgs e)
         {
             renderer.RenderWireframe = wireframeCheckBox.Checked;
             canvas.Invalidate();
         }
-
-        //private void OnNoFillChanged(object sender, EventArgs e)
-        //{
-
-        //    renderer.RenderFilled = noFillRadioButton;
-        //    canvas.Invalidate();
-        //}
 
 
         private void AnimationTimer_Tick(object sender, EventArgs e)
@@ -552,7 +613,6 @@ namespace BezierSurfaceVisualizer.UI
 
         private void TransformAndRender()
         {
-            // Transformacja wierzchołków
             foreach (var triangle in mesh.Triangles)
             {
                 transformer.RotateVertex(triangle.Vertex1);
@@ -560,7 +620,6 @@ namespace BezierSurfaceVisualizer.UI
                 transformer.RotateVertex(triangle.Vertex3);
             }
 
-            // Odświeżenie rysowania
             canvas.Invalidate();
         }
     }

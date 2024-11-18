@@ -27,7 +27,6 @@ namespace BezierSurfaceVisualizer.Models
         public float U { get; set; }
         public float V { get; set; }
 
-        // Konstruktor
         public Vertex(float u, float v)
         {
             U = u;

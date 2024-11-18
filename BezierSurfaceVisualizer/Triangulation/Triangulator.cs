@@ -6,16 +6,13 @@ namespace BezierSurfaceVisualizer.Triangulation
 {
     public class Triangulator
     {
-        // Dokładność triangulacji (liczba podziałów w u i v)
         private int divisions;
 
-        // Konstruktor
         public Triangulator(int divisions)
         {
             this.divisions = divisions;
         }
 
-        // Metoda do generowania siatki trójkątów na podstawie powierzchni Beziera
         public Mesh GenerateMesh(BezierSurface surface)
         {
             Mesh mesh = new Mesh();
@@ -46,7 +43,6 @@ namespace BezierSurfaceVisualizer.Triangulation
             return mesh;
         }
 
-        // Metoda pomocnicza do tworzenia wierzchołka
         private Vertex CreateVertex(BezierSurface surface, float u, float v)
         {
             Vertex vertex = new Vertex(u, v);
