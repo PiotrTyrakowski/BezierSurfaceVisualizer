@@ -52,7 +52,6 @@ namespace BezierSurfaceVisualizer.Utils
                 controlPoints[i / 4, i % 4] = new Vector3(x, y, z);
             }
 
-            // find the biggest and the smallest value and scale it to fit the screen
             float maxX = controlPoints[0, 0].X;
             float maxY = controlPoints[0, 0].Y;
             float maxZ = controlPoints[0, 0].Z;

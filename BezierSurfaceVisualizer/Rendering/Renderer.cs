@@ -13,15 +13,16 @@ namespace BezierSurfaceVisualizer.Rendering
 {
     public class Renderer
     {
-        // Opcje renderowania
         public bool RenderWireframe { get; set; }
         public bool RenderFilled { get; set; }
 
-        // Kolor obiektu lub tekstura
         private TextureManager textureManager;
         private LightingModel lightingModel;
         public bool useTexture;
         public bool modifyNormal;
+
+        // changed 
+        private float[,] zBuffer;
 
         // Konstruktor
         public Renderer(TextureManager textureManager, LightingModel lightingModel, bool useTexture, bool modifyNormal)
@@ -30,6 +31,19 @@ namespace BezierSurfaceVisualizer.Rendering
             this.lightingModel = lightingModel;
             this.useTexture = useTexture;
             this.modifyNormal = modifyNormal;
+        }
+
+        // changed
+        public void InitializeZBuffer(int width, int height)
+        {
+            zBuffer = new float[width, height];
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    zBuffer[x, y] = float.MaxValue; 
+                }
+            }
         }
 
         // Metoda do renderowania siatki na canvasie
@@ -70,106 +84,124 @@ namespace BezierSurfaceVisualizer.Rendering
         }
 
         // Metoda do wypełniania trójkąta
+
         private void FillTriangle(Graphics graphics, PointF[] points, List<Vertex> vertices)
         {
-            // Przygotowanie punktów i kolorów
             Point[] intPoints = new Point[3];
             for (int i = 0; i < 3; i++)
             {
                 intPoints[i] = Point.Round(points[i]);
             }
 
-            int minY = (int)Math.Min(intPoints[0].Y, Math.Min(intPoints[1].Y, intPoints[2].Y));
-            int maxY = (int)Math.Max(intPoints[0].Y, Math.Max(intPoints[1].Y, intPoints[2].Y));
+            int minY = Math.Min(intPoints[0].Y, Math.Min(intPoints[1].Y, intPoints[2].Y));
+            int maxY = Math.Max(intPoints[0].Y, Math.Max(intPoints[1].Y, intPoints[2].Y));
 
-            
-            
+            int canvasW = (int)graphics.VisibleClipBounds.Width;
+            int canvasH = (int)graphics.VisibleClipBounds.Height;
+
+            // Scanline
             for (int y = minY; y <= maxY; y++)
             {
-              
-                List<int> intersections = new List<int>();
+                List<float> intersections = new List<float>();
                 for (int i = 0; i < 3; i++)
                 {
                     int next = (i + 1) % 3;
-                    if ((intPoints[i].Y <= y && intPoints[next].Y > y) || (intPoints[next].Y <= y && intPoints[i].Y > y))
+                    if ((intPoints[i].Y <= y && intPoints[next].Y > y)
+                        || (intPoints[next].Y <= y && intPoints[i].Y > y))
                     {
-                        float x = intPoints[i].X + (float)(y - intPoints[i].Y) / (intPoints[next].Y - intPoints[i].Y) * (intPoints[next].X - intPoints[i].X);
-                        intersections.Add((int)x);
+                        float dy = intPoints[next].Y - intPoints[i].Y;
+                        float t = (y - intPoints[i].Y) / dy;
+                        float ix = intPoints[i].X + t * (intPoints[next].X - intPoints[i].X);
+
+                        intersections.Add(ix);
                     }
                 }
                 if (intersections.Count < 2)
-                    continue; 
+                    continue;
 
                 intersections.Sort();
-
 
                 float xStart = intersections[0];
                 float xEnd = intersections[1];
 
-                // Clamp to canvas boundaries
-                xStart = Math.Max(xStart, 0);
-                xEnd = Math.Min(xEnd, graphics.VisibleClipBounds.Width - 1);
+                if (xStart < 0) xStart = 0;
+                if (xEnd >= canvasW) xEnd = canvasW - 1;
 
-                // Wypełnianie linii między parzystymi przecięciami
-               
                 for (int x = (int)Math.Ceiling(xStart); x <= (int)Math.Floor(xEnd); x++)
                 {
-                    // Obliczanie współrzędnych barycentrycznych
-                    Vector3 barycentric = MathHelper.ComputeBarycentricCoordinates(new Point(x, y), intPoints[0], intPoints[1], intPoints[2]);
+                    Vector3 barycentric = MathHelper.ComputeBarycentricCoordinates(
+                        new Point(x, y),
+                        intPoints[0], intPoints[1], intPoints[2]
+                    );
 
                     if (barycentric.X < 0 || barycentric.Y < 0 || barycentric.Z < 0)
                         continue;
 
-                    // Interpolacja wektora normalnego i współrzędnej z
-                    Vector3 interpolatedNormal = barycentric.X * vertices[0].NAfter + barycentric.Y * vertices[1].NAfter + barycentric.Z * vertices[2].NAfter;
-                       
-                    interpolatedNormal = Vector3.Normalize(interpolatedNormal);
-
-                   
                     Vector3 interpolatedPosition =
                         barycentric.X * vertices[0].PAfter +
                         barycentric.Y * vertices[1].PAfter +
                         barycentric.Z * vertices[2].PAfter;
 
-                    //interpolatedPosition = Vector3.Normalize(interpolatedPosition);
+                    float z = interpolatedPosition.Z;
 
-
-
-                    
-
-                    Vector3 objectColor;
-                    if (useTexture)
-                    {          
-                        objectColor = textureManager.GetTextureColor(
-                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
-                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
-                    }
-                    else
+                    if (z < zBuffer[x, y])
                     {
-                        objectColor = textureManager.ObjectColor;
-                    }
+                        zBuffer[x, y] = z;
 
-                    if (modifyNormal)
-                    {
-                        // Modyfikacja wektora normalnego na podstawie mapy normalnych
-                        Vector3 Ntexture = textureManager.GetNormalVector(
-                            barycentric.X * vertices[0].U + barycentric.Y * vertices[1].U + barycentric.Z * vertices[2].U,
-                            barycentric.X * vertices[0].V + barycentric.Y * vertices[1].V + barycentric.Z * vertices[2].V);
-
-                        Matrix3x3 M = new Matrix3x3(
-                            vertices[0].PuAfter, vertices[0].PvAfter, vertices[0].NAfter);
-
-                        interpolatedNormal = Matrix3x3.Transform(Ntexture, M);
+                        Vector3 interpolatedNormal =
+                            barycentric.X * vertices[0].NAfter +
+                            barycentric.Y * vertices[1].NAfter +
+                            barycentric.Z * vertices[2].NAfter;
                         interpolatedNormal = Vector3.Normalize(interpolatedNormal);
+
+                        if (modifyNormal)
+                        {
+                            float u = barycentric.X * vertices[0].U +
+                                      barycentric.Y * vertices[1].U +
+                                      barycentric.Z * vertices[2].U;
+                            float v = barycentric.X * vertices[0].V +
+                                      barycentric.Y * vertices[1].V +
+                                      barycentric.Z * vertices[2].V;
+
+                            Vector3 normalFromMap = textureManager.GetNormalVector(u, v);
+
+                            
+                            Matrix3x3 M = new Matrix3x3(
+                                vertices[0].PuAfter,
+                                vertices[0].PvAfter,
+                                vertices[0].NAfter
+                            );
+
+                            Vector3 finalNormal = Matrix3x3.Transform(normalFromMap, M);
+                            interpolatedNormal = Vector3.Normalize(finalNormal);
+                        }
+
+                        Vector3 objColor;
+                        if (useTexture)
+                        {
+                            float u = barycentric.X * vertices[0].U +
+                                      barycentric.Y * vertices[1].U +
+                                      barycentric.Z * vertices[2].U;
+                            float v = barycentric.X * vertices[0].V +
+                                      barycentric.Y * vertices[1].V +
+                                      barycentric.Z * vertices[2].V;
+
+                            objColor = textureManager.GetTextureColor(u, v);
+                        }
+                        else
+                        {
+                            objColor = textureManager.ObjectColor;
+                        }
+
+                        Color pixelColor = lightingModel.CalculateColor(interpolatedNormal, objColor, interpolatedPosition);
+
+                        graphics.FillRectangle(new SolidBrush(pixelColor), x, y, 1, 1);
                     }
-
-                    Color color = lightingModel.CalculateColor(interpolatedNormal, objectColor, interpolatedPosition);
-
-                    // Rysowanie piksela
-                    graphics.FillRectangle(new SolidBrush(color), x, y, 1, 1);
                 }
-                
             }
         }
+      
+
+        
     }
 }
