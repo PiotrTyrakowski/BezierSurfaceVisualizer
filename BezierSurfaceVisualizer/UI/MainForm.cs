@@ -42,6 +42,7 @@ namespace BezierSurfaceVisualizer.UI
 
         // Inne pola
         private Mesh mesh;
+        private Mesh pyramidMesh; // changed
         private BezierSurface bezierSurface;
         private Triangulator triangulator;
         private Transformer transformer;
@@ -50,6 +51,11 @@ namespace BezierSurfaceVisualizer.UI
         private TextureManager textureManager;
         private bool isAnimating = false;
         private float lightAngle = 0;
+
+        // changed
+        private float pyramidAngle = 0f;        // kąt obrotu piramidy w czasie
+        private Transformer pyramidTransformer; // osobny transformer dla piramidy
+
 
         public CheckBox wireframeCheckBox { get; private set; }
         public Button changeObjectColorButton { get; private set; }
@@ -369,19 +375,15 @@ namespace BezierSurfaceVisualizer.UI
 
 
 
-
         private void InitializeData()
         {
-            
             Vector3[,] controlPoints = FileHelper.LoadControlPoints("control_points.txt");
-
             bezierSurface = new BezierSurface(controlPoints);
 
             triangulator = new Triangulator(divisionTrackBar.Value);
+            mesh = triangulator.GenerateMesh(bezierSurface);
 
             transformer = new Transformer(alphaTrackBar.Value, betaTrackBar.Value);
-
-           
             lightingModel = new LightingModel
             {
                 Kd = kdTrackBar.Value / 100f,
@@ -390,13 +392,11 @@ namespace BezierSurfaceVisualizer.UI
             };
 
             textureManager = new TextureManager();
-
-            renderer = new Renderer(textureManager, lightingModel, textureRadioButton.Checked, modifyNormalCheckBox.Checked);
-
-            renderer.RenderFilled = true;    
-            renderer.RenderWireframe = true;
-
-            mesh = triangulator.GenerateMesh(bezierSurface);
+            renderer = new Renderer(textureManager, lightingModel, textureRadioButton.Checked, modifyNormalCheckBox.Checked)
+            {
+                RenderFilled = true,
+                RenderWireframe = true
+            };
 
             foreach (var triangle in mesh.Triangles)
             {
@@ -404,13 +404,87 @@ namespace BezierSurfaceVisualizer.UI
                 transformer.RotateVertex(triangle.Vertex2);
                 transformer.RotateVertex(triangle.Vertex3);
             }
+
+            pyramidMesh = new Mesh();
+
+            pyramidTransformer = new Transformer(0f, 0f);
+
+            // Wierzchołki piramidy
+            Vector3 c1 = new Vector3(-50, -50, -100);
+            Vector3 c2 = new Vector3(50, -50, -100);
+            Vector3 c3 = new Vector3(50, 50, -100);
+            Vector3 c4 = new Vector3(-50, 50, -100);
+            Vector3 apex = new Vector3(0, 0, 100);
+
+
+            // 1) Tri c1-c2-c3
+            Vector3 baseNormal1 = Vector3.Cross(c2 - c1, c3 - c1);
+            baseNormal1 = Vector3.Normalize(baseNormal1);
+
+            Vertex b1v1 = new Vertex(0, 0) { PBefore = c1, NBefore = baseNormal1 };
+            Vertex b1v2 = new Vertex(0, 0) { PBefore = c2, NBefore = baseNormal1 };
+            Vertex b1v3 = new Vertex(0, 0) { PBefore = c3, NBefore = baseNormal1 };
+            pyramidMesh.AddTriangle(new Triangle(b1v1, b1v2, b1v3));
+
+            // 2) Tri c1-c3-c4
+            Vector3 baseNormal2 = Vector3.Cross(c3 - c1, c4 - c1);
+            baseNormal2 = Vector3.Normalize(baseNormal2);
+
+            Vertex b2v1 = new Vertex(0, 0) { PBefore = c1, NBefore = baseNormal2 };
+            Vertex b2v2 = new Vertex(0, 0) { PBefore = c3, NBefore = baseNormal2 };
+            Vertex b2v3 = new Vertex(0, 0) { PBefore = c4, NBefore = baseNormal2 };
+            pyramidMesh.AddTriangle(new Triangle(b2v1, b2v2, b2v3));
+
+
+            // Ściana 1: c1-c2-apex
+            Vector3 sideNormal1 = Vector3.Cross(c2 - c1, apex - c1);
+            sideNormal1 = Vector3.Normalize(sideNormal1);
+
+            Vertex s1v1 = new Vertex(0, 0) { PBefore = c1, NBefore = sideNormal1 };
+            Vertex s1v2 = new Vertex(0, 0) { PBefore = c2, NBefore = sideNormal1 };
+            Vertex s1v3 = new Vertex(0, 0) { PBefore = apex, NBefore = sideNormal1 };
+            pyramidMesh.AddTriangle(new Triangle(s1v1, s1v2, s1v3));
+
+            // Ściana 2: c2-c3-apex
+            Vector3 sideNormal2 = Vector3.Cross(c3 - c2, apex - c2);
+            sideNormal2 = Vector3.Normalize(sideNormal2);
+
+            Vertex s2v1 = new Vertex(0, 0) { PBefore = c2, NBefore = sideNormal2 };
+            Vertex s2v2 = new Vertex(0, 0) { PBefore = c3, NBefore = sideNormal2 };
+            Vertex s2v3 = new Vertex(0, 0) { PBefore = apex, NBefore = sideNormal2 };
+            pyramidMesh.AddTriangle(new Triangle(s2v1, s2v2, s2v3));
+
+            // Ściana 3: c3-c4-apex
+            Vector3 sideNormal3 = Vector3.Cross(c4 - c3, apex - c3);
+            sideNormal3 = Vector3.Normalize(sideNormal3);
+
+            Vertex s3v1 = new Vertex(0, 0) { PBefore = c3, NBefore = sideNormal3 };
+            Vertex s3v2 = new Vertex(0, 0) { PBefore = c4, NBefore = sideNormal3 };
+            Vertex s3v3 = new Vertex(0, 0) { PBefore = apex, NBefore = sideNormal3 };
+            pyramidMesh.AddTriangle(new Triangle(s3v1, s3v2, s3v3));
+
+            // Ściana 4: c4-c1-apex
+            Vector3 sideNormal4 = Vector3.Cross(c1 - c4, apex - c4);
+            sideNormal4 = Vector3.Normalize(sideNormal4);
+
+            Vertex s4v1 = new Vertex(0, 0) { PBefore = c4, NBefore = sideNormal4 };
+            Vertex s4v2 = new Vertex(0, 0) { PBefore = c1, NBefore = sideNormal4 };
+            Vertex s4v3 = new Vertex(0, 0) { PBefore = apex, NBefore = sideNormal4 };
+            pyramidMesh.AddTriangle(new Triangle(s4v1, s4v2, s4v3));
         }
 
         private void Canvas_Paint(object sender, PaintEventArgs e)
         {
+            // changed
+            renderer.InitializeZBuffer(canvas.Width, canvas.Height);
+
             renderer.RenderMesh(e.Graphics, mesh, canvas.Width, canvas.Height);
 
-        
+            // changed
+            renderer.RenderMesh(e.Graphics, pyramidMesh, canvas.Width, canvas.Height);
+
+
+
             DrawLightSymbol(e.Graphics);
         }
 
@@ -608,7 +682,37 @@ namespace BezierSurfaceVisualizer.UI
                 radius * (float)Math.Sin(lightAngle),
                 lightZTrackBar.Value);
 
+            // changed
+            pyramidAngle += 1.0f;
+            RotatePyramid();
+
+
             canvas.Invalidate();
+        }
+
+
+        private void RotatePyramid()
+        {
+
+            pyramidTransformer = new Transformer(-pyramidAngle * 3, pyramidAngle);
+
+
+            foreach (var triangle in pyramidMesh.Triangles)
+            {
+                // reset
+                triangle.Vertex1.PAfter = triangle.Vertex1.PBefore;
+                triangle.Vertex2.PAfter = triangle.Vertex2.PBefore;
+                triangle.Vertex3.PAfter = triangle.Vertex3.PBefore;
+
+                triangle.Vertex1.NAfter = triangle.Vertex1.NBefore;
+                triangle.Vertex2.NAfter = triangle.Vertex2.NBefore;
+                triangle.Vertex3.NAfter = triangle.Vertex3.NBefore;
+
+                // obrót
+                pyramidTransformer.RotateVertex(triangle.Vertex1);
+                pyramidTransformer.RotateVertex(triangle.Vertex2);
+                pyramidTransformer.RotateVertex(triangle.Vertex3);
+            }
         }
 
         private void TransformAndRender()
@@ -619,6 +723,9 @@ namespace BezierSurfaceVisualizer.UI
                 transformer.RotateVertex(triangle.Vertex2);
                 transformer.RotateVertex(triangle.Vertex3);
             }
+
+
+           
 
             canvas.Invalidate();
         }
